@@ -1,0 +1,97 @@
+1. The priority inversion problem could cause that a higher-priority process needs to wait for the completion of a lower-priority process.
+    1. Priority inheritance is one approach to address this issue. Please give another approach and briefly describe its idea.
+	
+	Soln: The problem of priority inversion can be solved by Random boosting approach apart from priority inversion. As the name suggests the 
+	priority for the process holding the lock can be randomly boosted until process releases the lock and enters the critical section. Boosting the
+	priority for process holding lock, when there is a process in lock wait queue with higher priority, then boost the priority of the process holding
+	the lock to have a higher priority than the process waiting in the queue. This provides enough boost to avoid the problem of priority inversion.
+
+
+    2. Design a test case to show that your approach can address the priority inversion problem. You should compare the results that derived from the
+	original XINU implementation (use semaphore) and that derived from your implementation (use readers/writer locks). Put your results in
+	Lab3Answers.txt and your test case program (name it task1.c) in both ./sys and ./TMP
+	
+	Soln: Consider 3 processes A, B and C having priorities 10, 20, 30. In the Semaphore implementation, A is scheduled first, it acquires the
+	semaphore and goes to sleep. During this period when process B with higher priority is scheduled for execution, even through B is of higher
+	priority than A, it is made to wait until A releases the semaphore. Similarly, when the task C is scheduled to run has to wait until B releases
+	Semaphore. Below code output of task1.c captures the problem with the priority inversion in XINU implementation.
+	
+	Implementing the locks for the same scenario, Process A starts the execution, when the next process B arrives with higher priority after that C
+	with highest priority, the priority of A is ramped up before sleep, now process B is scheduled to run for a while, until C is encountered. Later
+	C acquires the lock, then C acquires the lock, parallely the priority of A and B both ramped up to the priority of C, So A continues to exeute 
+	with the higest priorty, then B continues execute, later C completes. Hence this solves the priority inversion problem in the XINU implementation.
+	
+		-----------Output of task1.c-----------------------------------------
+		Semaphore Test: implemntation of semaphore for basic priority inheritence
+
+		Starting A(reader process):
+		-start reader A priority: 10 to acquire Semaphore
+		Process A: acquired semaphore, sleep for 1 sec
+
+		Starting B(reader process):
+		-start reader B priority: 20 to acquire Semaphore
+		Priority of A: 10(no ramp up)
+		A: release semaphore
+		Process B: acquired semaphore, sleep for 1 sec
+
+		Starting C(writer process):
+		-start writer C priority: 30 to acquire Semaphore
+		Priority of B: 20(no ramp up)
+		B: release semaphore
+		Process C: acquired semaphore, sleep for 1 sec
+		Priority of C: 30(no ramp up)
+		C: release semaphore
+			
+		Implementation using Semaphore completed 
+
+		Semaphore Test OK
+
+		
+		Lock Test: implemntation of lock for basic priority inheritence
+
+		Starting A(reader process):
+		-start reader A priority: 10 to acquire lock
+		Process A acquired lock, sleep for 5 sec
+
+		Starting B(reader process):
+		-start reader B priority: 20 to acquire lock
+		Process B acquired lock, sleep for 5 sec
+
+		Starting C(writer process):
+		-start writer C priority: 30 to acquire lock
+		Priority of A: 30(ramped up)
+		A releasing lock
+		Priority of B: 30(ramped up)
+		B releasing lock
+		Process C acquired lock, sleep for 5 sec
+
+		Implementation using Locks completed 
+
+		Lock Test OK
+		
+
+2. Synchronization is a quite complex issue in operating systems. To show your understanding about process synchronization, you are asked to point
+ out a reader/writer synchronization issue in this pesudo-code: task2_sync_issue.c. Multiple reader threads can execute this code concurrently by
+ calling do_update. All the variables starting with global_ are global variables. You are asked to describe the potential issue caused by the
+ incorrect synchronization and point out at least one possible thread interleaving that would trigger the problem. Put your answer in Lab3Answers.txt 
+ mentioned above.
+ 
+ Soln: Reader/writer synchronization issue in the pseudo code:
+ 
+	* First function to execute will be do_update(0, this inten calls the try_update(). Multiple threads can enter the try_execute() at the same time.
+	* There is a critical section in the try_update() --> 
+			acquire(global_semaphore); // global_semaphore is a counting semaphore initialized to 10
+			buflen = buffer_add (&global_buf, bufstr, szlen);
+			release(global_semaphore);
+			
+	* The sem variabe is global_semaphore can allow upto 10 threads to enter the critical section.
+
+  Consider thepossible scenario, where 2 threads T1 and T2 enter the critical section of buffer_add (buffer_t *buf, const char *txt, int size)
+	1. T1 executes memcpy(), before it updates the buffer len, it was interrupted.
+	2. During the same time when T2 enter the critical section in the buffer_add, continues to execute the memcpy() , now since the buf-> length 
+		was not updated. It will overwrite in same location as T1.
+	3. When T1 returns from the interrupt, it again updates the buf->len. Potential problem would be values going beyond the buffer size, leading
+		to access of unwanted values.
+			
+   Such situations with multiple threads entering critical section and updating the global values with the interleaving will result in inconsistencies
+   leading to the race condition.
